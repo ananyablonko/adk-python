@@ -221,6 +221,26 @@ def _contains_empty_content(event: Event) -> bool:
       or event.content.parts[0].text == ''
   ) and (not event.output_transcription and not event.input_transcription)
 
+def _should_include_event_in_context(current_branch: Optional[str], event: Event) -> bool:
+  """Filters an event.
+  Removes events without content or function calls, and
+  events that otherwise do not belong to the context.
+
+  Args:
+    current_branch: The current branch of the agent.
+    event: Events to filter.
+
+  Returns:
+    True if the event should be included in the context,
+    False otherwise.
+  """
+  return not (False
+    or _contains_empty_content(event)
+    or not _is_event_belongs_to_branch(current_branch, event)
+    or _is_auth_event(event)
+    or _is_request_confirmation_event(event)
+  )
+  
 
 def _get_contents(
     current_branch: Optional[str], events: list[Event], agent_name: str = ''
@@ -240,23 +260,10 @@ def _get_contents(
   accumulated_input_transcription = ''
   accumulated_output_transcription = ''
 
-  # Parse the events, leaving the contents and the function calls and
-  # responses from the current agent.
-  raw_filtered_events = []
-  for event in events:
-    if _contains_empty_content(event):
-      continue
-    if not _is_event_belongs_to_branch(current_branch, event):
-      # Skip events not belong to current branch.
-      continue
-    if _is_auth_event(event):
-      # Skip auth events.
-      continue
-    if _is_request_confirmation_event(event):
-      # Skip request confirmation events.
-      continue
-
-    raw_filtered_events.append(event)
+  raw_filtered_events = [
+    e for e in events
+    if _should_include_event_in_context(current_branch, e)
+  ]
 
   filtered_events = []
   # aggregate transcription events
@@ -343,7 +350,13 @@ def _get_current_turn_contents(
   # Find the latest event that starts the current turn and process from there
   for i in range(len(events) - 1, -1, -1):
     event = events[i]
-    if event.author == 'user' or _is_other_agent_reply(agent_name, event):
+    if (
+      _should_include_event_in_context(current_branch, event)
+      and (
+        event.author == 'user'
+        or _is_other_agent_reply(agent_name, event)
+      )
+    ):
       return _get_contents(current_branch, events[i:], agent_name)
 
   return []
