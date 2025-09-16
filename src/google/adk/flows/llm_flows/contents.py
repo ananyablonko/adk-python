@@ -222,20 +222,21 @@ def _contains_empty_content(event: Event) -> bool:
   ) and (not event.output_transcription and not event.input_transcription)
 
 def _should_include_event_in_context(current_branch: Optional[str], event: Event) -> bool:
-  """Filters an event.
-  Removes events without content or function calls, and
-  events that otherwise do not belong to the context.
+  """Determines if an event should be included in the LLM context.
+
+  This filters out events that are considered empty (e.g., no text, function
+  calls, or transcriptions), do not belong to the current agent's branch, or
+  are internal events like authentication or confirmation requests.
 
   Args:
     current_branch: The current branch of the agent.
-    event: Events to filter.
+    event: The event to filter.
 
   Returns:
-    True if the event should be included in the context,
-    False otherwise.
+    True if the event should be included in the context, False otherwise.
   """
-  return not (False
-    or _contains_empty_content(event)
+  return not (
+    _contains_empty_content(event)
     or not _is_event_belongs_to_branch(current_branch, event)
     or _is_auth_event(event)
     or _is_request_confirmation_event(event)
